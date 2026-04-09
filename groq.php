@@ -1,28 +1,28 @@
 <?php
+ob_start();
+error_reporting(0);
+ini_set('display_errors', 0);
 require 'config.php';
+ob_clean();
 
 $data = json_decode(file_get_contents('php://input'), true);
 $messages = $data['messages'] ?? [];
 $system = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
 
-// Simple token check
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 $token = str_replace('Bearer ', '', $authHeader);
 
 if (empty($token)) {
-    http_response_code(401);
     echo json_encode(['error' => ['message' => 'Unauthorized']]);
     exit;
 }
 
-// Verify token sa database
 $db = getDB();
 $stmt = $db->prepare("SELECT id FROM users WHERE token = ?");
 $stmt->bind_param("s", $token);
 $stmt->execute();
 if ($stmt->get_result()->num_rows === 0) {
-    http_response_code(401);
     echo json_encode(['error' => ['message' => 'Invalid token']]);
     exit;
 }
@@ -46,8 +46,5 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
 ]));
 
 $response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
-
-http_response_code($httpCode);
 echo $response;
