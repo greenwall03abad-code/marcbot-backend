@@ -1,40 +1,37 @@
 <?php
 require 'config.php';
 
-// Verify token
+$data = json_decode(file_get_contents('php://input'), true);
+$messages = $data['messages'] ?? [];
+$system = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
+
+// Simple token check
 $headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
-if (!str_starts_with($authHeader, 'Bearer ')) {
+$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+$token = str_replace('Bearer ', '', $authHeader);
+
+if (empty($token)) {
     http_response_code(401);
     echo json_encode(['error' => ['message' => 'Unauthorized']]);
     exit;
 }
-$token = substr($authHeader, 7);
 
-// Verify JWT token
+// Verify token sa database
 $db = getDB();
 $stmt = $db->prepare("SELECT id FROM users WHERE token = ?");
 $stmt->bind_param("s", $token);
 $stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows === 0) {
+if ($stmt->get_result()->num_rows === 0) {
     http_response_code(401);
     echo json_encode(['error' => ['message' => 'Invalid token']]);
     exit;
 }
 
-// Get request data
-$data = json_decode(file_get_contents('php://input'), true);
-$messages = $data['messages'] ?? [];
-$system = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
-
-// Prepend system message
 $fullMessages = array_merge(
     [['role' => 'system', 'content' => $system]],
     $messages
 );
 
-// Call Groq API using config constants
 $ch = curl_init(AI_API_URL);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
