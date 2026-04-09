@@ -50,28 +50,25 @@ $payload = json_encode([
     'stream'      => false
 ]);
 
-$opts = [
-    'http' => [
-        'method'  => 'POST',
-        'header'  => implode("\r\n", [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . AI_API_KEY,
-        ]),
-        'content' => $payload,
-        'timeout' => 60,
-        'ignore_errors' => true,
+$ch = curl_init(AI_API_URL);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST           => true,
+    CURLOPT_POSTFIELDS     => $payload,
+    CURLOPT_HTTPHEADER     => [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . AI_API_KEY,
     ],
-    'ssl' => [
-        'verify_peer'      => false,
-        'verify_peer_name' => false,
-    ],
-];
+    CURLOPT_TIMEOUT        => 60,
+    CURLOPT_CONNECTTIMEOUT => 15,
+    CURLOPT_SSL_VERIFYPEER => false,
+]);
+$response = curl_exec($ch);
+$err = curl_error($ch);
+curl_close($ch);
 
-$context  = stream_context_create($opts);
-$response = file_get_contents(AI_API_URL, false, $context);
-
-if ($response === false) {
-    respond(['status' => 'error', 'message' => 'AI request failed — could not reach Groq API'], 502);
+if ($err || !$response) {
+    respond(['status' => 'error', 'message' => 'Groq error: ' . $err], 502);
 }
 
 $result = json_decode($response, true);
