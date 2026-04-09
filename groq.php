@@ -9,9 +9,13 @@ $data = json_decode(file_get_contents('php://input'), true);
 $messages = $data['messages'] ?? [];
 $system = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
 
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-$token = str_replace('Bearer ', '', $authHeader);
+// More reliable token extraction
+$token = '';
+if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+    $token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
+} elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+    $token = str_replace('Bearer ', '', $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+}
 
 if (empty($token)) {
     echo json_encode(['error' => ['message' => 'Unauthorized']]);
