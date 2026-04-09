@@ -35,7 +35,7 @@
   .form-group input{width:100%;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;outline:none;transition:border .15s;font-family:var(--font-ui);}
   .form-group input:focus{border-color:var(--accent2);}
   .form-group input::placeholder{color:var(--text-dim);}
-  .btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;font-size:14px;font-weight:800;border:none;border-radius:12px;cursor:pointer;margin-top:6px;font-family:var(--font-ui);transition:opacity .15s;}
+  .btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent2),var(--accent)) !important;color:#fff !important;font-size:14px;font-weight:800;border:none;border-radius:12px;cursor:pointer;margin-top:6px;font-family:var(--font-ui);transition:opacity .15s;}
   .btn-primary:hover{opacity:0.9;}
   .btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
   .auth-error{background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.3);color:#ff9999;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:12px;display:none;font-family:var(--font-mono);}
@@ -175,9 +175,8 @@
 </div>
 
 <script>
+// ✅ Walang API key dito — nasa backend na (groq.php)
 const BACKEND = 'https://marcbot-backend-production.up.railway.app';
-const GROQ_KEY = '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';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const SUBJECTS = {
   General:"You are MarcBot, a helpful and friendly AI study assistant for Filipino students. Answer clearly and concisely. Mix in Filipino/Tagalog when helpful.",
@@ -258,6 +257,8 @@ document.querySelectorAll('.subj-chip').forEach(chip => {
     document.querySelectorAll('.subj-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     currentSubject = chip.dataset.subj;
+    // I-clear ang history kapag nagpalit ng subject
+    chatHistory = [];
   });
 });
 
@@ -319,35 +320,38 @@ async function sendMsg() {
   if (qp) qp.remove();
 
   appendUserMsg(text);
+
+  // Limit history sa 20 messages para hindi mag-overflow
+  if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
   chatHistory.push({role:'user', content:text});
   appendBotMsg('', true);
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // ✅ Tinatawag na ang backend proxy — walang API key sa frontend!
+    const res = await fetch(BACKEND+'/groq.php', {
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+token
+      },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        max_tokens: 1024,
-        messages: [{role:'system',content:SUBJECTS[currentSubject]}, ...chatHistory]
+        subject: currentSubject,
+        system: SUBJECTS[currentSubject],
+        messages: chatHistory
       })
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'API error');
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:{message:'Server error'}}));
+      throw new Error(err.error?.message || 'Server error '+res.status);
+    }
 
+    const data = await res.json();
     const reply = data.choices[0].message.content;
     chatHistory.push({role:'assistant', content:reply});
 
     removeTyping();
     appendBotMsg(reply);
-
-    // Save to DB (best effort)
-    fetch(BACKEND+'/chat.php', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body: JSON.stringify({message:text})
-    }).catch(()=>{});
 
   } catch(err) {
     removeTyping();
