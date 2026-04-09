@@ -7,5 +7,7 @@ ignore_user_abort(true);
 
 require 'config.php';
 
-// Test - return early to check if basic PHP works
-respond(['status' => 'ok', 'reply' => 'Step 1: PHP works']);
+$user_id = requireAuth();
+
+// Test - check if auth works
+respond(['status' => 'ok', 'reply' => 'Step 2: Auth works! User ID: ' . $user_id]);
