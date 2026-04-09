@@ -2,6 +2,7 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 set_time_limit(120);
+ignore_user_abort(true);
 
 require 'config.php';
 
@@ -34,7 +35,6 @@ $messages = [
 foreach ($rows as $row) {
     $messages[] = ['role' => $row['role'], 'content' => $row['message']];
 }
-
 $messages[] = ['role' => 'user', 'content' => $message];
 
 $stmt2 = $db->prepare("INSERT INTO chat_history (user_id, role, message) VALUES (?, 'user', ?)");
@@ -50,44 +50,40 @@ $payload = json_encode([
     'stream'      => false
 ]);
 
-$ch = curl_init(AI_API_URL);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => $payload,
-    CURLOPT_HTTPHEADER     => [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . AI_API_KEY,
+$opts = [
+    'http' => [
+        'method'  => 'POST',
+        'header'  => implode("\r\n", [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . AI_API_KEY,
+        ]),
+        'content' => $payload,
+        'timeout' => 60,
+        'ignore_errors' => true,
     ],
-    CURLOPT_TIMEOUT        => 60,
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => false,
-]);
+    'ssl' => [
+        'verify_peer'      => false,
+        'verify_peer_name' => false,
+    ],
+];
 
-$response = curl_exec($ch);
-$err      = curl_error($ch);
-$httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+$context  = stream_context_create($opts);
+$response = file_get_contents(AI_API_URL, false, $context);
 
-if ($err) {
-    respond(['status' => 'error', 'message' => 'AI request failed: ' . $err . ' (HTTP: ' . $httpcode . ')'], 502);
-}
-
-if (!$response) {
-    respond(['status' => 'error', 'message' => 'Empty response from AI (HTTP: ' . $httpcode . ')'], 502);
+if ($response === false) {
+    respond(['status' => 'error', 'message' => 'AI request failed — could not reach Groq API'], 502);
 }
 
 $result = json_decode($response, true);
 
 if (json_last_error() !== JSON_ERROR_NONE) {
-    respond(['status' => 'error', 'message' => 'Invalid JSON from AI: ' . substr($response, 0, 200)], 502);
+    respond(['status' => 'error', 'message' => 'Invalid JSON: ' . substr($response, 0, 200)], 502);
 }
 
 $reply = $result['choices'][0]['message']['content'] ?? null;
 
 if (!$reply) {
-    respond(['status' => 'error', 'message' => 'No reply from AI. Response: ' . substr($response, 0, 200)], 502);
+    respond(['status' => 'error', 'message' => 'No reply. Response: ' . substr($response, 0, 200)], 502);
 }
 
 $stmt3 = $db->prepare("INSERT INTO chat_history (user_id, role, message) VALUES (?, 'assistant', ?)");
