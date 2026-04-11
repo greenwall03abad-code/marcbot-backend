@@ -1,36 +1,28 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-set_time_limit(120);
-ignore_user_abort(true);
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-require 'config.php';
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-$user_id = requireAuth();
+require_once 'config.php';
 
-$payload = json_encode([
-    'model'      => AI_MODEL,
-    'messages'   => [['role' => 'user', 'content' => 'Say hello']],
-    'max_tokens' => 50,
-    'stream'     => false
-]);
+$token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION'] ?? '');
+if (!$token) { echo json_encode(['status'=>'error','message'=>'Unauthorized.']); exit(); }
 
-$ch = curl_init(AI_API_URL);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => $payload,
-    CURLOPT_HTTPHEADER     => [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . AI_API_KEY,
-    ],
-    CURLOPT_TIMEOUT        => 60,
-    CURLOPT_CONNECTTIMEOUT => 15,
-    CURLOPT_SSL_VERIFYPEER => false,
-]);
-$response = curl_exec($ch);
-$err = curl_error($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+$stmt = $pdo->prepare('SELECT user_id FROM sessions WHERE token = ?');
+$stmt->execute([$token]);
+$session = $stmt->fetch();
+if (!$session) { echo json_encode(['status'=>'error','message'=>'Unauthorized.']); exit(); }
 
-respond(['status' => 'ok', 'reply' => 'Step 3 - HTTP: ' . $code . ' Error: ' . $err . ' Response: ' . substr($response, 0, 200)]);
+$data = json_decode(file_get_contents('php://input'), true);
+$message = trim($data['message'] ?? '');
+$role = trim($data['role'] ?? 'user');
+
+if (!$message) { echo json_encode(['status'=>'error','message'=>'No message.']); exit(); }
+
+$stmt = $pdo->prepare('INSERT INTO chat_history (user_id, role, message) VALUES (?, ?, ?)');
+$stmt->execute([$session['user_id'], $role, $message]);
+
+echo json_encode(['status'=>'ok']);
