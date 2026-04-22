@@ -1,6 +1,5 @@
 <?php
 require 'config.php';
-
 $data     = json_decode(file_get_contents('php://input'), true);
 $username = trim($data['username'] ?? '');
 $email    = trim($data['email']    ?? '');
@@ -19,14 +18,13 @@ if (strlen($password) < 6) {
 $db   = getDB();
 $hash = password_hash($password, PASSWORD_BCRYPT);
 
-$stmt = $db->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
-$stmt->bind_param('sss', $username, $email, $hash);
-
-if (!$stmt->execute()) {
-    if ($db->errno === 1062) {
+try {
+    $stmt = $db->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
+    $stmt->execute([$username, $email, $hash]);
+    respond(['status' => 'ok', 'message' => 'Registered successfully']);
+} catch (PDOException $e) {
+    if (str_contains($e->getMessage(), 'duplicate') || str_contains($e->getMessage(), 'unique')) {
         respond(['status' => 'error', 'message' => 'Username or email already taken'], 409);
     }
     respond(['status' => 'error', 'message' => 'Registration failed'], 500);
 }
-
-respond(['status' => 'ok', 'message' => 'Registered successfully']);
