@@ -1,7 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 define('DB_HOST',     getenv('DB_HOST')     ?: 'aws-1-ap-south-1.pooler.supabase.com');
 define('DB_USER',     getenv('DB_USER')     ?: 'postgres.ltzvyjmswaxgnbnehhfl');
 define('DB_PASS',     getenv('DB_PASS')     ?: '');
