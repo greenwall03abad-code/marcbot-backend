@@ -5,11 +5,10 @@ ini_set('display_errors', 0);
 require 'config.php';
 ob_clean();
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data     = json_decode(file_get_contents('php://input'), true);
 $messages = $data['messages'] ?? [];
-$system = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
+$system   = $data['system'] ?? 'You are MarcBot, a helpful AI study assistant.';
 
-// More reliable token extraction
 $token = '';
 if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
     $token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
@@ -22,12 +21,13 @@ if (empty($token)) {
     exit;
 }
 
-$db = getDB();
-$stmt = $db->prepare("SELECT id FROM users WHERE token = ?");
-$stmt->bind_param("s", $token);
-$stmt->execute();
-if ($stmt->get_result()->num_rows === 0) {
-    echo json_encode(['error' => ['message' => 'Invalid token']]);
+$db   = getDB();
+$stmt = $db->prepare("SELECT user_id FROM sessions WHERE token = ? AND expires_at > NOW()");
+$stmt->execute([$token]);
+$row  = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$row) {
+    echo json_encode(['error' => ['message' => 'Invalid or expired token']]);
     exit;
 }
 
@@ -44,11 +44,10 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer ' . AI_API_KEY
 ]);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-    'model' => AI_MODEL,
+    'model'      => AI_MODEL,
     'max_tokens' => 1024,
-    'messages' => $fullMessages
+    'messages'   => $fullMessages
 ]));
-
 $response = curl_exec($ch);
 curl_close($ch);
 echo $response;
