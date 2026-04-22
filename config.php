@@ -11,9 +11,8 @@ define('AI_API_URL',  'https://api.groq.com/openai/v1/chat/completions');
 define('AI_API_KEY',  getenv('GROQ_API_KEY') ?: '');
 define('AI_MODEL',    'llama3-8b-8192');
 define('JWT_SECRET',  getenv('JWT_SECRET')  ?: 'marcbot-secret-change-this');
-define('ALLOWED_ORIGIN', getenv('FRONTEND_URL') ?: '*');
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: ' . ALLOWED_ORIGIN);
+header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
